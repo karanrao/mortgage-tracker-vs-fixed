@@ -1,0 +1,672 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#f4f3f0">
+<title>Tracker vs Fixed Mortgage — What-If Simulator</title>
+<style>
+  :root {
+    color-scheme: light;
+    --page: #f4f3f0; --surface-1: #fcfcfb; --surface-2: #f0efeb; --border: #e1dfd9;
+    --text-primary: #0b0b0b; --text-secondary: #52514e; --text-muted: #85837d; --grid: #e7e5df;
+    --tracker: #2a78d6; --fixed: #eb6834; --base: #85837d;
+    --good: #0b7a3b; --bad: #b42318; --accent: #2a78d6;
+    --radius: 14px; --tap: 44px;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      color-scheme: dark;
+      --page: #121211; --surface-1: #1a1a19; --surface-2: #262624; --border: #36362f;
+      --text-primary: #f0efec; --text-secondary: #c3c2b7; --text-muted: #8e8d85; --grid: #2c2c29;
+      --tracker: #3987e5; --fixed: #d95926; --base: #8e8d85;
+      --good: #3fbf6f; --bad: #f0706a; --accent: #3987e5;
+    }
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    margin: 0; background: var(--page); color: var(--text-primary);
+    font: 15px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+  button { font: inherit; }
+  .num { font-variant-numeric: tabular-nums; }
+
+  /* ---------- Sticky result bar ---------- */
+  .bar {
+    position: sticky; top: 0; z-index: 20;
+    background: color-mix(in srgb, var(--page) 88%, transparent);
+    backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+    border-bottom: 1px solid var(--border);
+    padding: calc(10px + env(safe-area-inset-top)) 16px 10px;
+  }
+  .bar-in { max-width: 1240px; margin: 0 auto; display: flex; align-items: center; gap: 12px; }
+  .bar .who { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; padding: 3px 8px; border-radius: 6px; color: #fff; flex: none; }
+  .bar .who.t { background: var(--tracker); } .bar .who.f { background: var(--fixed); } .bar .who.n { background: var(--text-muted); }
+  .bar .msg { flex: 1; min-width: 0; }
+  .bar .l1 { font-weight: 650; font-size: 16px; line-height: 1.25; }
+  .bar .l2 { font-size: 12.5px; color: var(--text-secondary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+  .wrap { max-width: 1240px; margin: 0 auto; padding: 16px 16px 40px; }
+  header h1 { font-size: 20px; margin: 4px 0 2px; letter-spacing: -0.01em; }
+  header p { margin: 0 0 14px; color: var(--text-secondary); font-size: 14px; }
+
+  .layout { display: grid; gap: 14px; }
+  @media (min-width: 960px) {
+    .layout { grid-template-columns: 420px 1fr; gap: 20px; align-items: start; }
+    .col-r { position: sticky; top: 76px; }
+    header h1 { font-size: 24px; }
+  }
+  .col { display: grid; gap: 14px; min-width: 0; }
+
+  .card { background: var(--surface-1); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; min-width: 0; }
+  .card h2 { font-size: 13px; margin: 0 0 12px; text-transform: uppercase; letter-spacing: .06em; color: var(--text-secondary); }
+  .card h3 { font-size: 12px; margin: 16px 0 8px; color: var(--text-muted); text-transform: uppercase; letter-spacing: .05em; }
+
+  /* Collapsible mortgage card */
+  details.card > summary { list-style: none; cursor: pointer; display: flex; align-items: center; justify-content: space-between; gap: 10px; min-height: 28px; }
+  details.card > summary::-webkit-details-marker { display: none; }
+  details.card > summary h2 { margin: 0; }
+  .chev { width: 28px; height: 28px; border-radius: 50%; background: var(--surface-2); display: grid; place-items: center; flex: none; transition: transform .2s; color: var(--text-secondary); }
+  details[open] .chev { transform: rotate(180deg); }
+  .sumline { font-size: 13.5px; color: var(--text-secondary); margin-top: 6px; }
+  details[open] .sumline { display: none; }
+  details.card[open] > summary { margin-bottom: 12px; }
+
+  /* Fields with steppers */
+  .field { margin-bottom: 12px; }
+  .field > label { display: block; font-size: 13px; color: var(--text-secondary); margin-bottom: 5px; }
+  .nstep { display: flex; align-items: stretch; height: var(--tap); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; background: var(--surface-2); }
+  .nstep button { width: var(--tap); border: 0; background: transparent; color: var(--text-primary); font-size: 20px; cursor: pointer; flex: none; touch-action: manipulation; }
+  .nstep button:active { background: var(--border); }
+  .nstep .box { flex: 1; display: flex; align-items: center; justify-content: center; gap: 2px; border-left: 1px solid var(--border); border-right: 1px solid var(--border); min-width: 0; }
+  .nstep input { width: 100%; min-width: 0; border: 0; background: transparent; color: var(--text-primary); font-size: 16px; font-weight: 600; text-align: center; font-variant-numeric: tabular-nums; padding: 0; -moz-appearance: textfield; }
+  .nstep input::-webkit-outer-spin-button, .nstep input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+  .nstep input:focus { outline: none; }
+  .nstep:focus-within { outline: 2px solid var(--accent); outline-offset: 1px; }
+  .nstep .u { color: var(--text-muted); font-size: 14px; flex: none; }
+  .nstep .u.pre { padding-left: 8px; } .nstep .u.post { padding-right: 8px; }
+  .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .derived { display: flex; justify-content: space-between; align-items: center; padding: 10px 12px; border-radius: 10px; background: var(--surface-2); font-size: 14px; }
+  .swatch { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 6px; }
+  .seg { display: flex; border: 1px solid var(--border); border-radius: 10px; overflow: hidden; background: var(--surface-2); }
+  .seg button { flex: 1; min-height: 40px; border: 0; background: transparent; color: var(--text-secondary); font-size: 14px; cursor: pointer; }
+  .seg button.on { background: var(--accent); color: #fff; font-weight: 600; }
+
+  /* Scenario */
+  .chips { display: flex; gap: 8px; overflow-x: auto; scrollbar-width: none; margin: 0 -16px 12px; padding: 0 16px 2px; scroll-snap-type: x proximity; }
+  .chips::-webkit-scrollbar { display: none; }
+  .chip { flex: none; scroll-snap-align: start; min-height: 36px; border: 1px solid var(--border); background: var(--surface-2); color: var(--text-primary); border-radius: 999px; padding: 0 14px; font-size: 14px; cursor: pointer; white-space: nowrap; }
+  .chip.on { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
+  .ev-list { display: grid; gap: 8px; }
+  .ev { border: 1px solid var(--border); border-radius: 12px; padding: 8px; background: var(--surface-2); display: grid; gap: 6px; }
+  .ev.outside { opacity: .5; }
+  .ev .r1, .ev .r2 { display: flex; align-items: center; gap: 8px; }
+  .ev select { height: 38px; border-radius: 8px; border: 1px solid var(--border); background: var(--surface-1); color: var(--text-primary); font-size: 16px; padding: 0 8px; flex: 1; min-width: 0; }
+  .ev .del { width: 38px; height: 38px; flex: none; border: 0; border-radius: 8px; background: transparent; color: var(--text-muted); font-size: 22px; cursor: pointer; }
+  .ev .del:active { background: var(--border); }
+  .ev .stp { display: flex; align-items: stretch; height: var(--tap); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; background: var(--surface-1); }
+  .ev .stp button { width: var(--tap); border: 0; background: transparent; color: var(--text-primary); font-size: 20px; cursor: pointer; touch-action: manipulation; }
+  .ev .stp button:active { background: var(--border); }
+  .ev .stp .v { min-width: 80px; display: grid; place-items: center; font-weight: 700; font-variant-numeric: tabular-nums; border-left: 1px solid var(--border); border-right: 1px solid var(--border); }
+  .v.up { color: var(--bad); } .v.down { color: var(--good); }
+  .ev .nb { margin-left: auto; text-align: right; font-size: 13px; color: var(--text-secondary); line-height: 1.2; }
+  .ev .nb b { display: block; font-size: 16px; color: var(--text-primary); font-variant-numeric: tabular-nums; }
+  .empty { color: var(--text-muted); font-size: 14px; padding: 12px; text-align: center; border: 1px dashed var(--border); border-radius: 12px; }
+  .btns { display: grid; grid-template-columns: 1fr auto; gap: 8px; margin-top: 10px; }
+  .btn { min-height: var(--tap); border: 1px solid var(--border); background: var(--surface-2); color: var(--text-primary); padding: 0 16px; border-radius: 10px; font-size: 15px; cursor: pointer; }
+  .btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
+
+  /* Charts */
+  .legend { display: flex; gap: 14px; flex-wrap: wrap; font-size: 12.5px; color: var(--text-secondary); margin-bottom: 6px; }
+  .legend span { display: inline-flex; align-items: center; gap: 6px; }
+  .legend i { display: inline-block; width: 16px; height: 2px; }
+  .legend i.dash { background: repeating-linear-gradient(90deg, var(--base) 0 4px, transparent 4px 7px); }
+  .readout { display: flex; flex-wrap: wrap; gap: 4px 14px; align-items: baseline; font-size: 13px; min-height: 40px; padding: 6px 10px; border-radius: 10px; background: var(--surface-2); margin-bottom: 8px; font-variant-numeric: tabular-nums; }
+  .readout .when { color: var(--text-muted); width: 100%; font-size: 12px; }
+  .readout b { font-weight: 650; }
+  .chart { width: 100%; touch-action: pan-y; user-select: none; -webkit-user-select: none; }
+  .chart svg { display: block; width: 100%; overflow: visible; }
+  .chart svg text { fill: var(--text-muted); font-size: 11px; font-family: inherit; }
+  .chart-hint { font-size: 12px; color: var(--text-muted); margin-top: 4px; }
+
+  /* KPIs */
+  .kpis { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  @media (min-width: 640px) { .kpis { grid-template-columns: repeat(3, 1fr); } }
+  .kpi { background: var(--surface-1); border: 1px solid var(--border); border-radius: 12px; padding: 12px 14px; min-width: 0; }
+  .kpi .lbl { font-size: 11.5px; color: var(--text-secondary); text-transform: uppercase; letter-spacing: .05em; display: flex; align-items: center; gap: 6px; }
+  .kpi .lbl i { width: 8px; height: 8px; border-radius: 2px; flex: none; }
+  .kpi .n { font-size: 21px; font-weight: 700; font-variant-numeric: tabular-nums; margin-top: 4px; }
+  .kpi .s { font-size: 12.5px; color: var(--text-secondary); margin-top: 2px; font-variant-numeric: tabular-nums; }
+
+  .tabs { display: flex; border: 1px solid var(--border); border-radius: 10px; overflow: hidden; margin-bottom: 12px; background: var(--surface-2); }
+  .tabs button { flex: 1; min-height: 38px; border: 0; background: transparent; color: var(--text-secondary); font-size: 14px; cursor: pointer; }
+  .tabs button.on { background: var(--surface-1); color: var(--text-primary); font-weight: 650; box-shadow: inset 0 -2px 0 var(--accent); }
+  .panel[hidden] { display: none; }
+
+  /* Year table */
+  details.yy > summary { cursor: pointer; font-weight: 650; min-height: 28px; display: flex; align-items: center; justify-content: space-between; list-style: none; }
+  details.yy > summary::-webkit-details-marker { display: none; }
+  .tbl-wrap { overflow-x: auto; margin: 10px -16px 0; padding: 0 16px; }
+  table.t { width: 100%; border-collapse: collapse; font-size: 13px; font-variant-numeric: tabular-nums; }
+  table.t th, table.t td { padding: 8px 8px; text-align: right; border-bottom: 1px solid var(--border); white-space: nowrap; }
+  table.t th { color: var(--text-secondary); font-weight: 500; font-size: 12px; }
+  table.t th:first-child, table.t td:first-child { text-align: left; position: sticky; left: 0; background: var(--surface-1); }
+  table.t tfoot td { font-weight: 700; }
+  @media (max-width: 640px) { table.t .wide { display: none; } }
+
+  .actions { display: grid; gap: 8px; margin-top: 14px; }
+  @media (min-width: 640px) { .actions { grid-template-columns: auto auto auto; justify-content: start; } }
+  .notes { font-size: 12.5px; color: var(--text-muted); margin-top: 20px; line-height: 1.6; }
+  .toast { position: fixed; left: 50%; bottom: calc(20px + env(safe-area-inset-bottom)); transform: translateX(-50%); background: var(--text-primary); color: var(--page); padding: 10px 16px; border-radius: 10px; font-size: 14px; display: none; z-index: 30; max-width: 90vw; text-align: center; }
+  @media print {
+    .bar { position: static; } .col-r { position: static; }
+    .actions, .chips, .ev .del, .btns, .tabs, .chart-hint { display: none !important; }
+    .panel[hidden] { display: block !important; }
+    .card { break-inside: avoid; }
+  }
+</style>
+</head>
+<body>
+
+<div class="bar" role="status" aria-live="polite">
+  <div class="bar-in">
+    <span class="who n" id="barWho">—</span>
+    <div class="msg">
+      <div class="l1 num" id="barL1">—</div>
+      <div class="l2 num" id="barL2">—</div>
+    </div>
+  </div>
+</div>
+
+<div class="wrap">
+  <header>
+    <h1>Tracker vs Fixed Mortgage</h1>
+    <p>What-if simulator: see how Bank of England base-rate moves change the interest you pay.</p>
+  </header>
+
+  <div class="layout">
+    <!-- LEFT: inputs + scenario -->
+    <div class="col">
+      <details class="card" id="mortCard" open>
+        <summary>
+          <div>
+            <h2>Your mortgage</h2>
+            <div class="sumline num" id="sumline"></div>
+          </div>
+          <span class="chev" aria-hidden="true">▾</span>
+        </summary>
+
+        <div class="field">
+          <label for="principal">Loan amount</label>
+          <div class="nstep" data-k="principal" data-step="5000" data-min="1000"><button type="button" data-d="-1" aria-label="Decrease">−</button><div class="box"><span class="u pre">£</span><input id="principal" type="text" inputmode="numeric"></div><button type="button" data-d="1" aria-label="Increase">+</button></div>
+        </div>
+        <div class="row2">
+          <div class="field">
+            <label for="term">Remaining term</label>
+            <div class="nstep" data-k="term" data-step="1" data-min="1" data-max="40"><button type="button" data-d="-1" aria-label="Decrease">−</button><div class="box"><input id="term" type="text" inputmode="numeric"><span class="u post">yrs</span></div><button type="button" data-d="1" aria-label="Increase">+</button></div>
+          </div>
+          <div class="field">
+            <label for="horizon">Compare over</label>
+            <div class="nstep" data-k="horizon" data-step="1" data-min="1" data-max="40"><button type="button" data-d="-1" aria-label="Decrease">−</button><div class="box"><input id="horizon" type="text" inputmode="numeric"><span class="u post">yrs</span></div><button type="button" data-d="1" aria-label="Increase">+</button></div>
+          </div>
+        </div>
+        <div class="field">
+          <label>Repayment type</label>
+          <div class="seg" id="repType">
+            <button type="button" data-v="repay">Capital &amp; interest</button>
+            <button type="button" data-v="io">Interest only</button>
+          </div>
+        </div>
+
+        <h3>Tracker</h3>
+        <div class="row2">
+          <div class="field">
+            <label for="base">Base rate today</label>
+            <div class="nstep" data-k="base" data-step="0.25" data-min="0" data-dp="2"><button type="button" data-d="-1" aria-label="Decrease">−</button><div class="box"><input id="base" type="text" inputmode="decimal"><span class="u post">%</span></div><button type="button" data-d="1" aria-label="Increase">+</button></div>
+          </div>
+          <div class="field">
+            <label for="premium">Tracker premium</label>
+            <div class="nstep" data-k="premium" data-step="0.05" data-min="-5" data-dp="2"><button type="button" data-d="-1" aria-label="Decrease">−</button><div class="box"><input id="premium" type="text" inputmode="decimal"><span class="u post">%</span></div><button type="button" data-d="1" aria-label="Increase">+</button></div>
+          </div>
+        </div>
+        <div class="derived"><span><span class="swatch" style="background:var(--tracker)"></span>Tracker rate today (base + premium)</span><b class="num" id="trackerNow">—</b></div>
+
+        <h3>Fixed</h3>
+        <div class="field" style="margin-bottom:0">
+          <label for="fixed">Fixed rate</label>
+          <div class="nstep" data-k="fixed" data-step="0.05" data-min="0" data-dp="2"><button type="button" data-d="-1" aria-label="Decrease">−</button><div class="box"><input id="fixed" type="text" inputmode="decimal"><span class="u post">%</span></div><button type="button" data-d="1" aria-label="Increase">+</button></div>
+        </div>
+      </details>
+
+      <section class="card" aria-label="Base-rate scenario">
+        <h2>Base-rate scenario</h2>
+        <div class="chips" id="presets"></div>
+        <div class="legend">
+          <span><i style="background:var(--tracker)"></i>Tracker</span>
+          <span><i style="background:var(--fixed)"></i>Fixed</span>
+          <span><i class="dash"></i>Base rate</span>
+        </div>
+        <div class="readout" id="rateRO"></div>
+        <div class="chart" id="rateChart" role="img" aria-label="Interest rate path over time"></div>
+        <div class="chart-hint">Touch and slide across a chart to read any month.</div>
+
+        <h3 style="margin-top:18px">Rate changes</h3>
+        <div class="ev-list" id="evList"></div>
+        <div class="btns">
+          <button class="btn primary" id="addEvent" type="button">+ Add rate change</button>
+          <button class="btn" id="clearEvents" type="button">Clear</button>
+        </div>
+      </section>
+    </div>
+
+    <!-- RIGHT: results -->
+    <div class="col col-r">
+      <div class="kpis" id="kpis"></div>
+
+      <section class="card">
+        <div class="tabs" role="tablist">
+          <button type="button" role="tab" data-p="cum" class="on">Total interest</button>
+          <button type="button" role="tab" data-p="pay">Monthly payment</button>
+        </div>
+        <div class="panel" id="p-cum">
+          <div class="legend"><span><i style="background:var(--tracker)"></i>Tracker</span><span><i style="background:var(--fixed)"></i>Fixed</span></div>
+          <div class="readout" id="cumRO"></div>
+          <div class="chart" id="cumChart" role="img" aria-label="Cumulative interest over time"></div>
+        </div>
+        <div class="panel" id="p-pay" hidden>
+          <div class="legend"><span><i style="background:var(--tracker)"></i>Tracker</span><span><i style="background:var(--fixed)"></i>Fixed</span></div>
+          <div class="readout" id="payRO"></div>
+          <div class="chart" id="payChart" role="img" aria-label="Monthly payment over time"></div>
+        </div>
+      </section>
+
+      <details class="card yy" id="yyDetails">
+        <summary><span>Year-by-year breakdown</span><span class="chev" aria-hidden="true">▾</span></summary>
+        <div class="tbl-wrap"><table class="t" id="yyTable"></table></div>
+      </details>
+    </div>
+  </div>
+
+  <div class="actions">
+    <button class="btn primary" id="shareBtn" type="button">Copy link to this scenario</button>
+    <button class="btn" id="printBtn" type="button">Print / save as PDF</button>
+    <button class="btn" id="resetBtn" type="button">Reset to defaults</button>
+  </div>
+
+  <p class="notes">
+    How it's calculated: monthly amortisation over the remaining term. Interest accrues monthly at rate ÷ 12.
+    For the tracker, each base-rate change takes effect from the start of the chosen month and the monthly payment is recalculated
+    on the outstanding balance over the remaining months (as UK lenders do). The fixed payment stays constant throughout the comparison period.
+    The break-even base rate is the constant base rate at which both options pay the same interest over the comparison period.
+    The base rate can't go below 0%. This is an illustration only, not financial advice. Real products may have collars, fees, early repayment charges,
+    reversion to a standard variable rate, and slightly different interest calculation methods.
+  </p>
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+(() => {
+  const $ = (id) => document.getElementById(id);
+  const fmtGBP = (v, dp = 0) => (v < 0 ? '−' : '') + '£' + Math.abs(v).toLocaleString('en-GB', { minimumFractionDigits: dp, maximumFractionDigits: dp });
+  const fmtPct = (v, dp = 2) => v.toFixed(dp) + '%';
+  const fmtDelta = (v) => (v > 0 ? '+' : v < 0 ? '−' : '±') + Math.abs(v).toFixed(2) + '%';
+  const shortGBP = (v) => Math.abs(v) >= 1e6 ? '£' + (v / 1e6).toFixed(2) + 'm' : Math.abs(v) >= 1000 ? '£' + (v / 1000).toLocaleString('en-GB', { maximumFractionDigits: 0 }) + 'k' : '£' + Math.round(v);
+
+  const DEFAULTS = { principal: 300000, term: 25, horizon: 5, rep: 'repay', base: 4.00, premium: 0.75, fixed: 4.49, events: [], preset: 'flat' };
+  const PRESETS = {
+    flat:   { name: 'Flat', ev: [] },
+    cuts:   { name: 'Gradual cuts', ev: [[1,4,-0.25],[1,8,-0.25],[2,2,-0.25],[2,8,-0.25],[3,3,-0.25]] },
+    shock:  { name: 'Shock then ease', ev: [[1,2,0.25],[1,4,0.5],[1,8,0.5],[2,6,-0.25],[2,11,-0.5],[3,5,-0.5],[4,2,-0.25]] },
+    rising: { name: 'Steady rises', ev: [[1,2,0.25],[1,6,0.25],[1,11,0.25],[2,5,0.25]] },
+    roller: { name: 'Rollercoaster', ev: [[1,3,0.5],[1,9,0.5],[2,6,-0.75],[3,2,-0.75],[4,1,0.5],[4,9,0.25]] },
+  };
+
+  let uid = 1;
+  let S = loadState();
+  S.events.forEach(e => e.id = uid++);
+
+  function loadState() {
+    try {
+      if (location.hash.length > 1) {
+        const o = JSON.parse(decodeURIComponent(escape(atob(location.hash.slice(1)))));
+        const st = Object.assign({}, DEFAULTS, o);
+        st.events = (o.events || []).map(e => ({ y: +e.y, m: +e.m, d: +e.d }));
+        delete st.feeT; delete st.feeF;
+        return st;
+      }
+    } catch (e) {}
+    return JSON.parse(JSON.stringify(DEFAULTS));
+  }
+  const encodeState = () => btoa(unescape(encodeURIComponent(JSON.stringify(Object.assign({}, S, { events: S.events.map(({ y, m, d }) => ({ y, m, d })) })))));
+  const saveHash = () => { try { history.replaceState(null, '', '#' + encodeState()); } catch (e) {} };
+
+  // ---------- Numeric steppers ----------
+  const fmtField = (k, v) => k === 'principal' ? Math.round(v).toLocaleString('en-GB') : (['base', 'premium', 'fixed'].includes(k) ? (+v).toFixed(2) : String(v));
+  const parseNum = (s) => parseFloat(String(s).replace(/[£,\s%]/g, ''));
+  document.querySelectorAll('.nstep').forEach(w => {
+    const k = w.dataset.k, step = +w.dataset.step, min = w.dataset.min != null ? +w.dataset.min : -Infinity, max = w.dataset.max != null ? +w.dataset.max : Infinity;
+    const inp = w.querySelector('input');
+    const set = (v, reformat) => {
+      v = Math.min(max, Math.max(min, v));
+      S[k] = +v.toFixed(4);
+      if (reformat) inp.value = fmtField(k, S[k]);
+      if (k === 'term' || k === 'horizon') renderEvents();
+      update();
+    };
+    w.querySelectorAll('button').forEach(b => b.addEventListener('click', () => {
+      const cur = S[k];
+      const next = Math.round((cur + step * +b.dataset.d) / step) * step;
+      set(next, true);
+    }));
+    inp.addEventListener('input', () => { const v = parseNum(inp.value); if (!isNaN(v) && v >= min && v <= max) set(v, false); });
+    inp.addEventListener('blur', () => { inp.value = fmtField(k, S[k]); });
+    inp.addEventListener('focus', () => setTimeout(() => inp.select(), 0));
+  });
+  function syncInputs() {
+    ['principal', 'term', 'horizon', 'base', 'premium', 'fixed'].forEach(k => { $(k).value = fmtField(k, S[k]); });
+    document.querySelectorAll('#repType button').forEach(b => b.classList.toggle('on', b.dataset.v === S.rep));
+  }
+  document.querySelectorAll('#repType button').forEach(b => b.addEventListener('click', () => { S.rep = b.dataset.v; syncInputs(); update(); }));
+
+  // ---------- Presets ----------
+  function renderPresets() {
+    $('presets').innerHTML = Object.entries(PRESETS).map(([k, p]) => `<button type="button" class="chip ${S.preset === k ? 'on' : ''}" data-k="${k}">${p.name}</button>`).join('')
+      + (S.preset === 'custom' ? `<button type="button" class="chip on" disabled>Custom</button>` : '');
+    $('presets').querySelectorAll('.chip[data-k]').forEach(c => c.addEventListener('click', () => {
+      S.preset = c.dataset.k;
+      S.events = PRESETS[c.dataset.k].ev.map(([y, m, d]) => ({ y, m, d, id: uid++ }));
+      renderPresets(); renderEvents(); update();
+    }));
+  }
+
+  // ---------- Events ----------
+  const evIdx = (e) => (e.y - 1) * 12 + (e.m - 1);
+  const horizonMonths = () => Math.max(1, Math.min(Math.round(S.horizon * 12), Math.round(S.term * 12)));
+  const markCustom = () => { S.preset = 'custom'; renderPresets(); };
+
+  function renderEvents() {
+    S.events.sort((a, b) => evIdx(a) - evIdx(b));
+    const list = $('evList');
+    if (!S.events.length) {
+      list.innerHTML = `<div class="empty">No changes. Base stays at <b>${fmtPct(S.base)}</b>.<br>Pick a scenario or add a rate change.</div>`;
+      return;
+    }
+    const maxYear = Math.max(1, Math.round(S.term));
+    list.innerHTML = S.events.map(e => {
+      const yO = Array.from({ length: maxYear }, (_, i) => `<option value="${i + 1}" ${e.y === i + 1 ? 'selected' : ''}>Year ${i + 1}</option>`).join('');
+      const mO = Array.from({ length: 12 }, (_, i) => `<option value="${i + 1}" ${e.m === i + 1 ? 'selected' : ''}>Month ${i + 1}</option>`).join('');
+      return `<div class="ev" data-id="${e.id}">
+        <div class="r1"><select data-f="y" aria-label="Year">${yO}</select><select data-f="m" aria-label="Month">${mO}</select><button type="button" class="del" aria-label="Remove this change">×</button></div>
+        <div class="r2"><div class="stp"><button type="button" data-s="-1" aria-label="Lower by 0.25%">−</button><span class="v"></span><button type="button" data-s="1" aria-label="Raise by 0.25%">+</button></div>
+        <div class="nb"></div></div>
+      </div>`;
+    }).join('');
+    list.querySelectorAll('.ev').forEach(el => {
+      const e = S.events.find(x => x.id === +el.dataset.id);
+      el.querySelectorAll('select').forEach(s => s.addEventListener('change', () => { e[s.dataset.f] = +s.value; markCustom(); renderEvents(); update(); }));
+      el.querySelectorAll('.stp button').forEach(b => b.addEventListener('click', () => { e.d = +(e.d + 0.25 * +b.dataset.s).toFixed(2); markCustom(); refreshEvents(); update(); }));
+      el.querySelector('.del').addEventListener('click', () => { S.events = S.events.filter(x => x !== e); markCustom(); renderEvents(); update(); });
+    });
+    refreshEvents();
+  }
+  function refreshEvents() {
+    const H = horizonMonths();
+    let b = S.base;
+    $('evList').querySelectorAll('.ev').forEach(el => {
+      const e = S.events.find(x => x.id === +el.dataset.id);
+      b = Math.max(0, b + e.d);
+      const v = el.querySelector('.v');
+      v.textContent = fmtDelta(e.d);
+      v.className = 'v ' + (e.d > 0 ? 'up' : e.d < 0 ? 'down' : '');
+      const out = evIdx(e) >= H;
+      el.classList.toggle('outside', out);
+      el.querySelector('.nb').innerHTML = out ? `after period<b>${fmtPct(b)}</b>` : `base becomes<b>${fmtPct(b)}</b>`;
+    });
+    const emp = $('evList').querySelector('.empty b');
+    if (emp) emp.textContent = fmtPct(S.base);
+  }
+  $('addEvent').addEventListener('click', () => {
+    S.events.sort((a, b) => evIdx(a) - evIdx(b));
+    const last = S.events[S.events.length - 1];
+    const idx = Math.min(last ? evIdx(last) + 3 : 2, Math.round(S.term * 12) - 1);
+    S.events.push({ y: Math.floor(idx / 12) + 1, m: (idx % 12) + 1, d: 0.25, id: uid++ });
+    markCustom(); renderEvents(); update();
+    const els = $('evList').querySelectorAll('.ev');
+    const added = [...els].find(el => +el.dataset.id === uid - 1);
+    if (added) added.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+  });
+  $('clearEvents').addEventListener('click', () => { S.events = []; S.preset = 'flat'; renderPresets(); renderEvents(); update(); });
+
+  // ---------- Engine ----------
+  function basePath(n, events, start) {
+    const by = {};
+    events.forEach(e => { const i = evIdx(e); by[i] = (by[i] || 0) + e.d; });
+    const out = new Array(n); let b = start;
+    for (let i = 0; i < n; i++) { if (by[i]) b = Math.max(0, b + by[i]); out[i] = b; }
+    return out;
+  }
+  function pmt(bal, rate, n) {
+    const r = rate / 100 / 12;
+    if (n <= 0) return bal;
+    return Math.abs(r) < 1e-12 ? bal / n : bal * r / (1 - Math.pow(1 + r, -n));
+  }
+  function simulate(principal, N, rates, rep) {
+    let bal = principal, prev = null, pay = 0, cum = 0; const rows = [];
+    for (let i = 0; i < rates.length; i++) {
+      const rate = Math.max(0, rates[i]);
+      if (rep === 'io') pay = bal * rate / 1200; else if (rate !== prev) pay = pmt(bal, rate, N - i);
+      prev = rate;
+      const interest = bal * rate / 1200;
+      let pp = rep === 'io' ? 0 : Math.min(bal, pay - interest);
+      bal -= pp; cum += interest;
+      rows.push({ rate, pay: interest + pp, interest, bal, cum });
+    }
+    return rows;
+  }
+  function run() {
+    const N = Math.max(1, Math.round(S.term * 12)), H = horizonMonths();
+    const base = basePath(H, S.events, S.base);
+    const tRates = base.map(b => b + S.premium);
+    return { N, H, base, tRates, T: simulate(S.principal, N, tRates, S.rep), F: simulate(S.principal, N, new Array(H).fill(S.fixed), S.rep) };
+  }
+  function breakEven(N, H, fInt) {
+    const cost = (b) => simulate(S.principal, N, new Array(H).fill(Math.max(0, b + S.premium)), S.rep)[H - 1].cum;
+    if (cost(0) > fInt) return null;
+    let lo = 0, hi = 30;
+    if (cost(hi) < fInt) return Infinity;
+    for (let k = 0; k < 50; k++) { const m = (lo + hi) / 2; if (cost(m) < fInt) lo = m; else hi = m; }
+    return (lo + hi) / 2;
+  }
+
+  // ---------- Charts (rendered at real pixel width, finger-scrubbable) ----------
+  function niceTicks(min, max, count) {
+    const raw = (max - min) / count, mag = Math.pow(10, Math.floor(Math.log10(raw))), n = raw / mag;
+    const step = (n <= 1 ? 1 : n <= 2 ? 2 : n <= 2.5 ? 2.5 : n <= 5 ? 5 : 10) * mag;
+    const out = []; for (let v = Math.floor(min / step) * step; v <= Math.ceil(max / step) * step + step / 2; v += step) out.push(+v.toFixed(10));
+    return out;
+  }
+  const charts = {};
+  function drawChart(id, opts) {
+    charts[id] = opts;
+    const host = $(id);
+    const W = host.clientWidth;
+    if (!W) return; // hidden panel; drawn when shown
+    const narrow = W < 480;
+    const Hh = opts.h || (narrow ? 200 : 250);
+    const m = { t: 8, r: 8, b: 24, l: opts.left || 44 };
+    const iw = W - m.l - m.r, ih = Hh - m.t - m.b, n = opts.n;
+    let lo = Infinity, hi = -Infinity;
+    opts.series.forEach(s => s.data.forEach(v => { lo = Math.min(lo, v); hi = Math.max(hi, v); }));
+    if (opts.yMin != null) lo = Math.min(lo, opts.yMin);
+    if (hi - lo < 1e-9) hi = lo + 1;
+    const ticks = niceTicks(lo, hi, narrow ? 4 : 5);
+    lo = ticks[0]; hi = ticks[ticks.length - 1];
+    const x = (i) => m.l + (i / n) * iw;
+    const y = (v) => m.t + ih - ((v - lo) / (hi - lo)) * ih;
+    let g = '';
+    ticks.forEach(t => {
+      g += `<line x1="${m.l}" x2="${W - m.r}" y1="${y(t)}" y2="${y(t)}" stroke="var(--grid)"/>`;
+      g += `<text x="${m.l - 6}" y="${y(t) + 4}" text-anchor="end">${opts.yFmt(t)}</text>`;
+    });
+    const yrs = n / 12, maxLabels = Math.max(2, Math.floor(iw / 44));
+    const stepY = [1, 2, 5, 10].find(s => yrs / s <= maxLabels) || 10;
+    for (let yr = 0; yr <= yrs + 1e-9; yr += stepY) {
+      g += `<text x="${x(yr * 12)}" y="${Hh - 6}" text-anchor="${yr === 0 ? 'start' : 'middle'}">${yr === 0 ? 'Now' : 'Yr ' + yr}</text>`;
+    }
+    g += `<line x1="${m.l}" x2="${W - m.r}" y1="${m.t + ih}" y2="${m.t + ih}" stroke="var(--text-muted)"/>`;
+    (opts.markers || []).forEach(i => { g += `<line x1="${x(i)}" x2="${x(i)}" y1="${m.t}" y2="${m.t + ih}" stroke="var(--text-muted)" stroke-dasharray="2 3" opacity=".5"/>`; });
+    opts.series.forEach(s => {
+      let d;
+      if (s.step) {
+        d = `M${x(0)},${y(s.data[0])}`;
+        for (let i = 1; i < n; i++) if (s.data[i] !== s.data[i - 1]) d += `H${x(i)}V${y(s.data[i])}`;
+        d += `H${x(n)}`;
+      } else {
+        d = `M${x(0)},${y(0)}` + s.data.map((v, i) => `L${x(i + 1)},${y(v)}`).join('');
+      }
+      g += `<path d="${d}" fill="none" stroke="${s.color}" stroke-width="2" stroke-linejoin="round" ${s.dash ? 'stroke-dasharray="5 4"' : ''}/>`;
+    });
+    g += `<line class="xh" y1="${m.t}" y2="${m.t + ih}" stroke="var(--text-secondary)" visibility="hidden"/>`;
+    opts.series.forEach((s, k) => { g += `<circle class="dot${k}" r="4.5" fill="${s.color}" stroke="var(--surface-1)" stroke-width="2" visibility="hidden"/>`; });
+    host.innerHTML = `<svg viewBox="0 0 ${W} ${Hh}" height="${Hh}">${g}</svg>`;
+
+    const svg = host.firstChild, xh = svg.querySelector('.xh');
+    const ro = $(opts.readout);
+    const show = (i) => {
+      ro.innerHTML = `<span class="when">${i == null ? 'End of period (year ' + (n / 12).toFixed(n % 12 ? 1 : 0) + ')' : 'Year ' + (Math.floor(i / 12) + 1) + ', month ' + (i % 12 + 1)}</span>` + opts.readoutHTML(i == null ? n - 1 : i);
+      if (i == null) { xh.setAttribute('visibility', 'hidden'); opts.series.forEach((s, k) => svg.querySelector('.dot' + k).setAttribute('visibility', 'hidden')); return; }
+      const cx = s0step(opts) ? x(i + 0.5) : x(i + 1);
+      xh.setAttribute('x1', cx); xh.setAttribute('x2', cx); xh.setAttribute('visibility', 'visible');
+      opts.series.forEach((s, k) => { const c = svg.querySelector('.dot' + k); c.setAttribute('cx', cx); c.setAttribute('cy', y(s.data[i])); c.setAttribute('visibility', 'visible'); });
+    };
+    const at = (clientX) => { const r = svg.getBoundingClientRect(); return Math.max(0, Math.min(n - 1, Math.floor(((clientX - r.left - m.l) / iw) * n))); };
+    svg.addEventListener('pointerdown', (e) => show(at(e.clientX)));
+    svg.addEventListener('pointermove', (e) => { if (e.pointerType === 'mouse' || e.buttons) show(at(e.clientX)); });
+    svg.addEventListener('pointerleave', () => show(null));
+    svg.addEventListener('pointercancel', () => show(null));
+    svg.addEventListener('pointerup', (e) => { if (e.pointerType !== 'mouse') setTimeout(() => show(null), 1500); });
+    show(null);
+  }
+  const s0step = (o) => !!o.series[0].step;
+  const roItem = (color, label, val) => `<span><span class="swatch" style="background:${color}"></span>${label} <b>${val}</b></span>`;
+
+  // ---------- Render ----------
+  let last;
+  function update() {
+    if (!(S.principal > 0) || !(S.term > 0) || !(S.horizon > 0)) return;
+    const R = last = run();
+    const { N, H, base, tRates, T, F } = R;
+    const tInt = T[H - 1].cum, fInt = F[H - 1].cum, diff = tInt - fInt;
+    const yrs = H / 12, period = (Number.isInteger(yrs) ? yrs : yrs.toFixed(1)) + (yrs === 1 ? ' year' : ' years');
+    const avgBase = base.reduce((a, b) => a + b, 0) / H;
+    const be = breakEven(N, H, fInt);
+
+    $('trackerNow').textContent = fmtPct(S.base + S.premium);
+    $('sumline').textContent = `${fmtGBP(S.principal)} · ${S.term} yrs · compare ${period} · Tracker ${fmtPct(S.base + S.premium)} vs Fixed ${fmtPct(S.fixed)}`;
+
+    // Sticky bar
+    const who = $('barWho');
+    if (Math.abs(diff) < 1) { who.textContent = 'Tie'; who.className = 'who n'; $('barL1').textContent = `Same interest over ${period}`; }
+    else if (diff > 0) { who.textContent = 'Fixed'; who.className = 'who f'; $('barL1').textContent = `saves ${fmtGBP(diff)} over ${period}`; }
+    else { who.textContent = 'Tracker'; who.className = 'who t'; $('barL1').textContent = `saves ${fmtGBP(-diff)} over ${period}`; }
+    $('barL2').textContent = be === null ? 'Tracker costs more even at 0% base'
+      : be === Infinity ? 'Tracker stays cheaper even at very high base rates'
+      : `Break-even base ${fmtPct(be)} · scenario avg ${fmtPct(avgBase)}`;
+
+    // KPIs
+    const tP = T.map(r => r.pay), fP = F.map(r => r.pay);
+    const kpi = (lbl, n, s, c) => `<div class="kpi"><div class="lbl">${c ? `<i style="background:${c}"></i>` : ''}${lbl}</div><div class="n">${n}</div><div class="s">${s}</div></div>`;
+    $('kpis').innerHTML =
+      kpi('Tracker interest', fmtGBP(tInt), `avg rate ${fmtPct(tRates.reduce((a, b) => a + b, 0) / H)}`, 'var(--tracker)') +
+      kpi('Fixed interest', fmtGBP(fInt), `rate ${fmtPct(S.fixed)}`, 'var(--fixed)') +
+      kpi('Difference', fmtGBP(Math.abs(diff)), Math.abs(diff) < 1 ? 'no real difference' : diff > 0 ? 'fixed is cheaper' : 'tracker is cheaper') +
+      kpi('Tracker payment', fmtGBP(tP[0]) + '<small style="font-size:13px;font-weight:500">/mo</small>', `range ${fmtGBP(Math.min(...tP))}–${fmtGBP(Math.max(...tP))}`, 'var(--tracker)') +
+      kpi('Fixed payment', fmtGBP(fP[0]) + '<small style="font-size:13px;font-weight:500">/mo</small>', `constant`, 'var(--fixed)') +
+      kpi('Balance at end', fmtGBP(T[H - 1].bal), `fixed: ${fmtGBP(F[H - 1].bal)}`);
+
+    drawAll();
+
+    // Year table
+    let rows = '', tTI = 0, tFI = 0;
+    for (let y = 0; y < Math.ceil(H / 12); y++) {
+      const s = y * 12, e = Math.min(H, s + 12);
+      const sum = (a, f) => a.slice(s, e).reduce((acc, r) => acc + f(r), 0);
+      const ab = base.slice(s, e).reduce((a, b) => a + b, 0) / (e - s);
+      const ti = sum(T, r => r.interest), fi = sum(F, r => r.interest);
+      tTI += ti; tFI += fi;
+      rows += `<tr><td>Yr ${y + 1}${e - s < 12 ? ` (${e - s}m)` : ''}</td><td class="wide">${fmtPct(ab)}</td><td>${fmtPct(ab + S.premium)}</td>
+        <td>${fmtGBP(ti)}</td><td>${fmtGBP(fi)}</td><td>${fmtGBP(ti - fi)}</td>
+        <td class="wide">${fmtGBP(T[e - 1].bal)}</td><td class="wide">${fmtGBP(F[e - 1].bal)}</td></tr>`;
+    }
+    $('yyTable').innerHTML = `<thead><tr><th>Year</th><th class="wide">Avg base</th><th>Tracker rate</th><th>Tracker int.</th><th>Fixed int.</th><th>Diff</th><th class="wide">Tracker bal.</th><th class="wide">Fixed bal.</th></tr></thead>
+      <tbody>${rows}</tbody><tfoot><tr><td>Total</td><td class="wide"></td><td></td><td>${fmtGBP(tTI)}</td><td>${fmtGBP(tFI)}</td><td>${fmtGBP(tTI - tFI)}</td><td class="wide"></td><td class="wide"></td></tr></tfoot>`;
+
+    refreshEvents();
+    saveHash();
+  }
+
+  function drawAll() {
+    if (!last) return;
+    const { H, base, tRates, T, F } = last;
+    const markers = S.events.map(evIdx).filter(i => i > 0 && i < H);
+    const fixedArr = new Array(H).fill(S.fixed);
+    const allR = [...base, ...tRates, S.fixed];
+    drawChart('rateChart', {
+      n: H, h: 190, left: 38, markers, readout: 'rateRO',
+      yMin: Math.max(0, Math.floor(Math.min(...allR) - 0.5)),
+      series: [
+        { data: tRates, color: 'var(--tracker)', step: true },
+        { data: fixedArr, color: 'var(--fixed)', step: true },
+        { data: base, color: 'var(--base)', step: true, dash: true },
+      ],
+      yFmt: (v) => (v % 1 ? v.toFixed(1) : v) + '%',
+      readoutHTML: (i) => roItem('var(--tracker)', 'Tracker', fmtPct(tRates[i])) + roItem('var(--fixed)', 'Fixed', fmtPct(S.fixed)) + roItem('var(--base)', 'Base', fmtPct(base[i])),
+    });
+    drawChart('cumChart', {
+      n: H, markers, readout: 'cumRO', left: 46,
+      series: [{ data: T.map(r => r.cum), color: 'var(--tracker)' }, { data: F.map(r => r.cum), color: 'var(--fixed)' }],
+      yFmt: shortGBP,
+      readoutHTML: (i) => { const d = T[i].cum - F[i].cum; return roItem('var(--tracker)', 'Tracker', fmtGBP(T[i].cum)) + roItem('var(--fixed)', 'Fixed', fmtGBP(F[i].cum)) + `<span>${d > 0 ? 'Fixed' : 'Tracker'} ahead <b>${fmtGBP(Math.abs(d))}</b></span>`; },
+    });
+    const allP = [...T.map(r => r.pay), ...F.map(r => r.pay)];
+    drawChart('payChart', {
+      n: H, markers, readout: 'payRO', left: 46,
+      yMin: Math.max(0, Math.floor(Math.min(...allP) * 0.9 / 100) * 100),
+      series: [{ data: T.map(r => r.pay), color: 'var(--tracker)', step: true }, { data: F.map(r => r.pay), color: 'var(--fixed)', step: true }],
+      yFmt: shortGBP,
+      readoutHTML: (i) => roItem('var(--tracker)', 'Tracker', fmtGBP(T[i].pay, 2)) + roItem('var(--fixed)', 'Fixed', fmtGBP(F[i].pay, 2)) + `<span>Diff <b>${fmtGBP(T[i].pay - F[i].pay, 2)}</b></span>`,
+    });
+  }
+
+  // Tabs
+  document.querySelectorAll('.tabs button').forEach(b => b.addEventListener('click', () => {
+    document.querySelectorAll('.tabs button').forEach(x => x.classList.toggle('on', x === b));
+    ['cum', 'pay'].forEach(p => $('p-' + p).hidden = p !== b.dataset.p);
+    drawAll();
+  }));
+
+  // Redraw charts on width change only (ignore mobile address-bar height changes)
+  let lastW = window.innerWidth, rt;
+  window.addEventListener('resize', () => { if (window.innerWidth === lastW) return; lastW = window.innerWidth; clearTimeout(rt); rt = setTimeout(drawAll, 120); });
+
+  // Collapse the mortgage card by default on small screens when opened from a shared link
+  if (location.hash.length > 1 && window.innerWidth < 640) $('mortCard').open = false;
+
+  // Actions
+  const toast = (msg) => { const t = $('toast'); t.textContent = msg; t.style.display = 'block'; clearTimeout(toast.t); toast.t = setTimeout(() => t.style.display = 'none', 2400); };
+  $('shareBtn').addEventListener('click', async () => {
+    saveHash();
+    const url = location.href;
+    if (navigator.share && /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent)) { try { await navigator.share({ title: 'Tracker vs Fixed scenario', url }); return; } catch (e) {} }
+    try { await navigator.clipboard.writeText(url); toast('Link copied'); } catch (e) { prompt('Copy this link:', url); }
+  });
+  $('printBtn').addEventListener('click', () => { $('yyDetails').open = true; $('mortCard').open = true; window.print(); });
+  $('resetBtn').addEventListener('click', () => { S = JSON.parse(JSON.stringify(DEFAULTS)); syncInputs(); renderPresets(); renderEvents(); update(); });
+
+  syncInputs(); renderPresets(); renderEvents(); update();
+})();
+</script>
+</body>
+</html>
