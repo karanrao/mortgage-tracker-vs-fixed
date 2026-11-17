@@ -2,6 +2,8 @@
 
 A single-file, mobile-friendly tool that compares the interest you'd pay on a UK **tracker** mortgage (Bank of England base rate + a premium) with a **fixed-rate** mortgage, and lets you simulate the base rate going up and down over time.
 
+**Try it:** [agenticdirect.io/projects/mortgage-tracker-vs-fixed/simulator](https://agenticdirect.io/projects/mortgage-tracker-vs-fixed/simulator) · [project write-up](https://agenticdirect.io/projects/mortgage-tracker-vs-fixed)
+
 No build step, no dependencies, no data leaves the browser. Open `index.html` in any browser, or host it on any static host (GitHub Pages works as-is).
 
 ## What it does
